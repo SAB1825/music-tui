@@ -104,6 +104,10 @@ func TestLayoutFitsTerminal(t *testing.T) {
 					}
 				}
 				dock := strings.Join(lines[h-m.playerHeight():], "\n")
+				if m.dialog.kind != dialogNone {
+					base := strings.Split(m.renderBase(), "\n")
+					dock = strings.Join(base[h-m.playerHeight():], "\n")
+				}
 				if w >= 20 && !strings.Contains(dock, "Paused") {
 					t.Fatal("player is missing from the bottom of the view")
 				}

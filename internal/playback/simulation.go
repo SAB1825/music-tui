@@ -73,6 +73,13 @@ func (s *Simulation) Skip(step int) {
 	}
 }
 
+// Seek changes position within the currently cued track.
+func (s *Simulation) Seek(position time.Duration) {
+	if track, ok := s.Track(); ok {
+		s.position = min(max(0, track.Duration), max(0, position))
+	}
+}
+
 // AdjustVolume changes the simulated volume in percentage points.
 func (s *Simulation) AdjustVolume(delta int) {
 	s.volume = min(100, max(0, s.volume+delta))

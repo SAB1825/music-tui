@@ -1,6 +1,7 @@
 package ui
 
 import (
+	tea "charm.land/bubbletea/v2"
 	"slices"
 	"strings"
 )
@@ -20,6 +21,7 @@ const (
 	daybreak
 	settings
 	queue
+	firstPlaylist
 )
 
 func (p page) String() string {
@@ -29,7 +31,19 @@ func (p page) String() string {
 	}[p]
 }
 
-func (p page) unavailable() bool { return p == radio || p == downloads || p == createPlaylist }
+func (p page) unavailable() bool { return p == radio || p == downloads }
+
+func (m *model) choosePage(p page) tea.Cmd {
+	switch p {
+	case settings:
+		return m.showDialog(dialogSettings)
+	case createPlaylist:
+		return m.showDialog(dialogPlaylist)
+	default:
+		m.open(p)
+		return nil
+	}
+}
 
 func (m *model) open(p page) {
 	if p == m.page {
@@ -69,6 +83,12 @@ func moodTrack(category, index int) bool {
 
 func (m model) matches() []int {
 	query := strings.ToLower(strings.TrimSpace(m.search.Value()))
+	if query == "" && m.page >= firstPlaylist {
+		if p := m.playlists[m.page-firstPlaylist]; p.track >= 0 && !p.deleted {
+			return []int{p.track}
+		}
+		return nil
+	}
 	if query == "" && (m.page == settings || m.page.unavailable()) {
 		return nil
 	}

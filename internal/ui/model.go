@@ -33,7 +33,12 @@ type model struct {
 	page, sidebar    page
 	focus            focus
 	selected, offset int
-	help             bool
+	dialog           dialog
+	menuOffset       int
+	playlists        []sessionPlaylist
+	hover            action
+	screen           screenFrame
+	drawing          *screenFrame
 	clock            uint64
 	history          []page
 	historyIndex     int
@@ -49,7 +54,9 @@ type model struct {
 
 // New builds the application model with the supplied in-memory library.
 func New(tracks []domain.Track) tea.Model {
+	theme := newTheme()
 	search := textinput.New()
+	search.SetStyles(theme.inputStyles())
 	search.Prompt = ""
 	search.Placeholder = "Search your library"
 	search.CharLimit = 128
@@ -57,7 +64,7 @@ func New(tracks []domain.Track) tea.Model {
 		catalog: slices.Clone(tracks),
 		player:  playback.NewSimulation(tracks),
 		search:  search,
-		theme:   newTheme(),
+		theme:   theme,
 		history: []page{home},
 	}
 }
@@ -65,6 +72,14 @@ func New(tracks []domain.Track) tea.Model {
 func (m model) Init() tea.Cmd { return receiveSpectrum(m.spectrumEvents) }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	next, cmd := m.update(msg)
+	if _, motion := msg.(tea.MouseMotionMsg); !motion || next.hover != m.hover {
+		next.screen = next.draw()
+	}
+	return next, cmd
+}
+
+func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 	var cmd tea.Cmd
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -72,6 +87,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.search.SetWidth(max(1, m.searchWidth()-4))
 		m.search.SetCursor(m.search.Position())
 		m.prepareCovers()
+		m.hover = action{}
+		m.menuOffset = clampScroll(m.menuOffset, len(m.menuRows()), m.bodyHeight()-2)
+		m.dialog.input.SetWidth(max(1, min(64, m.width)-8))
 	case playbackTick:
 		if uint64(msg) == m.clock && m.player.Playing() {
 			m.player.Advance(time.Second)
@@ -91,9 +109,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.spectrumError = msg.Err.Error()
 		}
 		cmd = receiveSpectrum(m.spectrumEvents)
+	case tea.MouseMsg:
+		return m.updateMouse(msg)
 	case tea.KeyPressMsg:
+		m.hover = action{}
 		return m.updateKey(msg)
 	default:
+		if m.dialog.kind != dialogNone {
+			return m.updateDialogInput(msg)
+		}
 		if m.focus == searchFocus {
 			cmd = m.updateSearch(msg)
 		}
@@ -105,10 +129,13 @@ func tick(clock uint64) tea.Cmd {
 	return tea.Tick(time.Second, func(time.Time) tea.Msg { return playbackTick(clock) })
 }
 
-func (m model) updateKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+func (m model) updateKey(key tea.KeyPressMsg) (model, tea.Cmd) {
 	name := key.String()
 	if name == "ctrl+c" {
 		return m, tea.Quit
+	}
+	if m.dialog.kind != dialogNone {
+		return m.dialogKey(key)
 	}
 	if m.focus == searchFocus {
 		switch name {
@@ -127,18 +154,13 @@ func (m model) updateKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if name == "q" {
 		return m, tea.Quit
 	}
-	if m.help {
-		if name == "esc" || name == "?" {
-			m.help = false
-		}
-		return m, nil
-	}
 
 	playing := m.player.Playing()
 	restart := false
 	switch name {
 	case "?":
-		m.help = true
+		cmd := m.showDialog(dialogHelp)
+		return m, cmd
 	case "esc":
 		if m.search.Value() == "" && m.focus == tracksFocus {
 			m.travel(-1)
@@ -150,7 +172,13 @@ func (m model) updateKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "]":
 		m.travel(1)
 	case ",":
-		m.open(settings)
+		cmd := m.showDialog(dialogSettings)
+		return m, cmd
+	case "delete":
+		if m.page >= firstPlaylist && m.search.Value() == "" {
+			cmd := m.showDialog(dialogDelete)
+			return m, cmd
+		}
 	case "u":
 		m.open(queue)
 	case "f":
@@ -173,6 +201,7 @@ func (m model) updateKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		} else {
 			m.focus = sidebarFocus
 			m.sidebar = m.page
+			m.revealMenuSelection()
 		}
 	case "up":
 		m.move(-m.verticalStep())
@@ -184,7 +213,8 @@ func (m model) updateKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.move(1)
 	case "enter":
 		if m.focus == sidebarFocus {
-			m.open(m.sidebar)
+			cmd := m.choosePage(m.sidebar)
+			return m, cmd
 		} else if m.focus == categoryFocus {
 			m.focus = tracksFocus
 		} else if matches := m.matches(); m.selected < len(matches) {
@@ -199,6 +229,10 @@ func (m model) updateKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "p":
 		m.player.Skip(-1)
 		restart = playing
+	case "shift+left":
+		m.player.Seek(m.player.Position() - 5*time.Second)
+	case "shift+right":
+		m.player.Seek(m.player.Position() + 5*time.Second)
 	case "+", "=":
 		m.player.AdjustVolume(5)
 	case "-":
@@ -235,12 +269,11 @@ func (m model) verticalStep() int {
 
 func (m *model) move(step int) {
 	if m.focus == sidebarFocus {
-		m.sidebar = page(min(int(settings), max(int(home), int(m.sidebar)+step)))
+		m.moveMenu(step)
 		return
 	}
 	if m.focus == categoryFocus {
-		m.category = min(len(categories())-1, max(0, m.category+step))
-		m.selected, m.offset = 0, 0
+		m.setCategory(min(len(categories())-1, max(0, m.category+step)))
 		return
 	}
 	m.selected = min(max(0, len(m.matches())-1), max(0, m.selected+step))
@@ -249,4 +282,9 @@ func (m *model) move(step int) {
 	} else if rows := m.trackRows(m.bodyHeight()); rows > 0 && m.selected >= m.offset+rows {
 		m.offset = m.selected - rows + 1
 	}
+}
+
+func (m *model) setCategory(i int) {
+	m.category = i
+	m.selected, m.offset = 0, 0
 }

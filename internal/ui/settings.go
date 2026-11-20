@@ -2,8 +2,6 @@ package ui
 
 import (
 	"fmt"
-	"strings"
-	"unicode"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/SAB1825/music-tui/internal/config"
@@ -37,38 +35,23 @@ func receiveSpectrum(events <-chan visualizer.Event) tea.Cmd {
 	}
 }
 
-func (m model) settingsPanel(width, height int) string {
-	t := m.theme
+func (m model) settingsDetails() []string {
 	status := "Disabled in config.toml"
 	if m.spectrumEnabled {
 		monitor := m.spectrumConfig.Source
 		if monitor == "auto" {
 			monitor = "default output monitor"
 		}
-		status = fmt.Sprintf("CAVA · %d bars at %d fps · %s",
-			m.spectrumConfig.Bars, m.spectrumConfig.Framerate, monitor)
-	}
-	rows := []string{
-		line(t.heading, width, "  Settings"),
-		line(t.base, width, ""),
-		line(t.accent, width, "  AUDIO SPECTRUM"),
-		label(t.muted, width, "  "+status),
-		label(t.muted, width, "  Captures shared system output. This player simulates playback."),
+		status = fmt.Sprintf("CAVA · %d bars at %d fps", m.spectrumConfig.Bars, m.spectrumConfig.Framerate)
+		status += " · " + monitor
 	}
 	if m.spectrumError != "" {
-		if !m.spectrumEnabled {
-			rows[3] = label(t.warning, width, "  Visualizer configuration unavailable")
-		}
-		details := strings.FieldsFunc(m.spectrumError, unicode.IsControl)
-		for _, detail := range details {
-			rows = append(rows, label(t.warning, width, "  "+detail))
-		}
+		status = "Spectrum unavailable. Choose Details."
 	}
-	rows = append(rows,
-		label(t.dim, width, "  Configure in $XDG_CONFIG_HOME/music-tui/config.toml and restart."),
-		line(t.base, width, ""),
-		line(t.accent, width, "  ARTWORK"),
-		label(t.muted, width, "  Terminal-cell covers"),
-	)
-	return strings.Join(padRows(rows, t.base, width, height), "\n")
+	return []string{
+		"AUDIO SPECTRUM", status, "Captures shared system output.",
+		"Playback in this app is simulated.", "",
+		"Use $XDG_CONFIG_HOME/music-tui/config.toml.",
+		"", "ARTWORK", "Terminal-cell covers",
+	}
 }

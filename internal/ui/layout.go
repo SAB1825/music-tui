@@ -38,7 +38,8 @@ func (m model) bodyHeight() int   { return m.layout().body }
 func (m model) playerHeight() int { return m.layout().player }
 
 func (m model) View() tea.View {
-	view := tea.NewView(m.render())
+	view := tea.NewView(m.screen.content)
+	view.MouseMode = tea.MouseModeAllMotion
 	view.AltScreen = true
 	view.WindowTitle = "Afterhours Music"
 	view.BackgroundColor = m.theme.background
@@ -46,7 +47,20 @@ func (m model) View() tea.View {
 	return view
 }
 
-func (m model) render() string {
+func (m model) render() string { return m.draw().content }
+
+func (m model) draw() screenFrame {
+	var frame screenFrame
+	m.drawing = &frame
+	frame.content = m.renderBase()
+	if m.dialog.kind != dialogNone && m.width > 0 && m.height > 0 {
+		frame.targets = frame.targets[:0]
+		frame.content = m.overlay(frame.content)
+	}
+	return frame
+}
+
+func (m model) renderBase() string {
 	if m.width <= 0 || m.height <= 0 {
 		return ""
 	}
@@ -62,9 +76,6 @@ func (m model) render() string {
 }
 
 func (m model) mainPanel(width, height int) string {
-	if m.help {
-		return m.helpPanel(width, height)
-	}
 	if m.layout().sidebar == 0 && m.focus == sidebarFocus {
 		return m.sidebarPanel(width, height)
 	}
@@ -87,12 +98,10 @@ func (m model) trackRows(height int) int {
 
 func (m model) libraryPanel(width, height int) string {
 	t := m.theme
-	title := m.page.String()
+	title := m.pageName(m.page)
 	switch {
 	case m.search.Value() != "":
 		title = "Search results"
-	case m.page == settings:
-		return m.settingsPanel(width, height)
 	case m.page.unavailable():
 		return strings.Join(padRows([]string{
 			line(t.heading, width, "  "+title),
@@ -108,32 +117,23 @@ func (m model) libraryPanel(width, height int) string {
 	if m.page == home && m.search.Value() == "" && m.focus == categoryFocus {
 		summary = label(t.selected, width, "  "+categories()[m.category]+"  ←→ Change filter")
 	}
-	rows := []string{line(t.heading, width, "  "+title), summary}
+	heading := label(t.heading, width, "  "+title)
+	if m.page >= firstPlaylist && m.search.Value() == "" && width >= 25 && height >= 2 {
+		heading = label(t.heading, width-16, "  "+title) +
+			m.control(t.dim, deleteAction, m.layout().sidebar+width-16, m.layout().toolbar, 16, "  Delete list")
+	}
+	rows := []string{heading, summary}
 	visible := m.trackRows(height)
-	start := min(max(min(m.offset, m.selected), m.selected-visible+1), max(0, len(matches)-visible))
+	start := m.trackStart(len(matches), visible)
 	if len(matches) == 0 {
 		rows = append(rows, line(t.muted, width, "  No tracks to show"))
 	}
 	for i := start; i < min(len(matches), start+visible); i++ {
+		m.region(trackAction, i, m.layout().sidebar, m.layout().toolbar+len(rows), width, 1)
 		rows = append(rows, m.trackLine(width, i, m.catalog[matches[i]]))
 	}
 	rows = padRows(rows, t.base, width, max(0, height-1))
 	return strings.Join(append(rows, line(t.dim, width, "  ↑↓ Browse  ·  Enter Play  ·  Tab Menu  ·  ? Help")), "\n")
-}
-
-func (m model) helpPanel(width, height int) string {
-	lines := []string{
-		"  Keyboard shortcuts", "  ↑↓ / j k    Move selection", "  ←→ / h l    Move across cards or filters", "  Enter       Open or play",
-		"  Space       Play / pause", "  /           Search local library", "  Tab         Switch menu / tracks",
-		"  c           Focus discovery filters", "  [ / ]       Back / forward", "  n / p       Next / previous",
-		"  + / -       Volume", "  f / s / r   Favorite / shuffle / repeat", "  u / ,       Queue / settings",
-		"  Esc / ?     Close help", "  q / Ctrl+C  Quit",
-	}
-	var rows []string
-	for _, value := range lines {
-		rows = append(rows, line(m.theme.panel, width, value))
-	}
-	return strings.Join(padRows(rows, m.theme.panel, width, height), "\n")
 }
 
 func padRows(rows []string, style lipgloss.Style, width, height int) []string {

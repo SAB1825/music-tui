@@ -1,6 +1,6 @@
 # Afterhours Music
 
-Afterhours Music is a keyboard-first terminal music player written in Go. Browse the featured player and discovery cards, search the local catalog, or open the library and session playlists. The bottom player stays visible throughout. The warm palette and layout take inspiration from the [project reference](docs/references/music-ui.png).
+Afterhours Music is a keyboard-first terminal music player written in Go. Browse the featured player and discovery cards, search the local catalog, or open the library and session playlists. The bottom player stays visible throughout. The grayscale interface keeps the composition of the [project reference](docs/references/music-ui.png).
 
 ## Run locally
 
@@ -27,11 +27,21 @@ To install the command from this checkout, run `go install ./cmd/music-tui` and 
 | Esc | Clear search, return to tracks, go back, or close help |
 | Space | Play or pause |
 | `p` / `n` | Cue the previous or next catalog track |
+| Shift+← / Shift+→ | Seek backward or forward five seconds |
+| Delete | Ask to remove the open session playlist |
 | `+` / `-` | Adjust simulated volume |
 | `f` | Favorite or unfavorite the cued track |
 | `s` / `r` | Toggle shuffle or repeat for automatic playback |
 | `?` | Show keyboard shortcuts |
 | `q` / Ctrl+C | Quit. Use Ctrl+C while editing search. |
+
+## Mouse
+
+Click a menu item, filter, track, or card to navigate or select it. Press Enter to play a selected track. In compact layouts, click the **≡ Afterhours** label to open the menu. Scroll the wheel over the sidebar, track area, or an open dialog to scroll that area.
+
+The featured player and bottom dock offer clickable playback controls. Click a point on the progress or volume meter to set its value. Click the search field to type, and click away to keep the current filter. In Kitty, hold Shift while selecting text to use the terminal’s own mouse handling.
+
+Settings and Help open in centered dialogs. Use Tab and Enter to choose an action, or Esc to close. Create a session playlist from the sidebar. It starts with the currently cued track when one is available. Use **Delete list** or the Delete key to remove it after confirmation.
 
 ## Optional CAVA spectrum
 
@@ -54,7 +64,7 @@ Set `enabled = false` to turn off capture, or use a specific `.monitor` name fro
 
 ## Current scope
 
-The built-in mock catalog is the sole provider. Favorites and recently played tracks last for the session. On Repeat, Night Drive, and Daybreak Tapes are mock collections. Radio, Downloads, and playlist creation are marked unavailable.
+The built-in mock catalog is the sole provider. Favorites and recently played tracks last for the session. On Repeat, Night Drive, and Daybreak Tapes are mock collections. Radio and Downloads are marked unavailable.
 
 Album and playlist artwork uses original terminal-cell illustrations. Kitty graphics image placements are deferred because their redraw and cleanup behavior has yet to be verified with Bubble Tea v2 under tmux.
 

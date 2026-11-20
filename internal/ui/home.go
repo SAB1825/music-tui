@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"fmt"
 	"strings"
 
 	"charm.land/lipgloss/v2"
@@ -26,9 +25,9 @@ func (m model) homePanel(width, height int) string {
 	t := m.theme
 	d := homeDimensions(width, height)
 	header := []string{
-		line(t.featured, width, "  HOME  /  LOCAL PICKS"),
-		line(t.accent.Background(t.featured.GetBackground()), width, "  Still up, Night Owl?"),
-		line(t.muted.Background(t.featured.GetBackground()), width, "  Your late-night soundtrack"),
+		line(t.base, width, ""),
+		line(t.accent.Background(t.base.GetBackground()), width, "  Still up, Night Owl?"),
+		line(t.muted.Background(t.base.GetBackground()), width, "  Your late-night soundtrack"),
 	}
 	rows := append(header, strings.Split(m.featureCard(width, d), "\n")...)
 	rows = append(rows, line(t.base, width, ""), m.filters(width))
@@ -49,28 +48,32 @@ func (m model) featureCard(width int, d homeLayout) string {
 	}
 	art := m.cover(m.player.Index(), d.coverWidth, d.cardHeight-2)
 	metadataWidth := width - d.coverWidth - spectrumWidth - 10
+	x, y := m.layout().sidebar+4+d.coverWidth, m.layout().toolbar+4
+	if d.cardHeight >= 9 {
+		y++
+	}
 	info := []string{
 		label(t.card, metadataWidth, "  "+m.playerStatus()+"  ·  "+track.Album),
 		label(t.card.Bold(true), metadataWidth, "  "+track.Title),
 		label(t.muted.Background(t.card.GetBackground()), metadataWidth, "  "+track.Artist),
-		m.progress(t.card, metadataWidth, track.Duration),
-		label(t.card.Bold(true), metadataWidth, fmt.Sprintf("  ‹  %s  ›    %s", m.playSymbol(), m.favorite())),
+		m.progress(t.card, metadataWidth, track.Duration, x, y+3),
 	}
 	if d.cardHeight == 6 {
-		info = append(info[:2], label(t.card, metadataWidth, "  "+track.Artist+"    "+m.playSymbol()+" "+m.favorite()), info[3])
+		info[2] = m.featureControls(metadataWidth, x, y+2, track.Artist)
 	}
 	if d.cardHeight >= 9 {
+		info = append(info, m.featureControls(metadataWidth, x, y+4, ""))
 		info = append([]string{line(t.card, metadataWidth, "")}, info...)
 	}
 	info = padRows(info, t.card, metadataWidth, d.cardHeight-2)
 	art = line(t.card, d.coverWidth, "") + "\n" + art + "\n" + line(t.card, d.coverWidth, "")
 	meta := line(t.card, metadataWidth, "") + "\n" + strings.Join(info, "\n") + "\n" + line(t.card, metadataWidth, "")
-	blocks := []string{solid(t.featured, 2, d.cardHeight), solid(t.card, 2, d.cardHeight), art, meta}
+	blocks := []string{solid(t.base, 2, d.cardHeight), solid(t.card, 2, d.cardHeight), art, meta}
 	if spectrumWidth > 0 {
 		blocks = append(blocks, line(t.card, spectrumWidth, "")+"\n"+
 			m.spectrum(spectrumWidth, d.cardHeight-2)+"\n"+line(t.card, spectrumWidth, ""))
 	}
-	blocks = append(blocks, solid(t.card, 4, d.cardHeight), solid(t.featured, 2, d.cardHeight))
+	blocks = append(blocks, solid(t.card, 4, d.cardHeight), solid(t.base, 2, d.cardHeight))
 	return lipgloss.JoinHorizontal(lipgloss.Top, blocks...)
 }
 
@@ -94,6 +97,8 @@ func (m model) filters(width int) string {
 				style = t.button
 			}
 		}
+		m.region(filterAction, i, m.layout().sidebar+2+(i-first)*9, m.layout().toolbar+4+homeDimensions(width, m.bodyHeight()).cardHeight, 8, 1)
+		style = m.hoverStyle(style, filterAction, i)
 		row.WriteString(line(style.Align(lipgloss.Center), 8, all[i]))
 		row.WriteString(line(t.base, 1, ""))
 	}
@@ -119,7 +124,7 @@ func (m model) discovery(width int, d homeLayout) string {
 	}
 	columns := discoveryColumns(width)
 	visible := columns * d.discoveryRows
-	start := min(max(min(m.offset, m.selected), m.selected-visible+1), max(0, len(matches)-visible))
+	start := m.trackStart(len(matches), visible)
 	cardWidth := discoveryCardWidth(width, columns)
 	var rows []string
 	for first := start; first < min(len(matches), start+visible); first += columns {
@@ -129,7 +134,10 @@ func (m model) discovery(width int, d homeLayout) string {
 			if i > first {
 				cards = append(cards, solid(t.base, 2, d.discoveryHeight))
 			}
-			cards = append(cards, m.discoveryCard(matches[i], cardWidth, d.discoveryHeight, i == m.selected))
+			x := m.layout().sidebar + 2 + (i-first)*(cardWidth+2)
+			y := m.layout().toolbar + 5 + d.cardHeight + ((first-start)/columns)*(d.discoveryHeight+1)
+			m.region(trackAction, i, x, y, cardWidth, d.discoveryHeight)
+			cards = append(cards, m.discoveryCard(matches[i], cardWidth, d.discoveryHeight, i))
 		}
 		rows = append(rows, lipgloss.JoinHorizontal(lipgloss.Top, cards...))
 		if first+columns < min(len(matches), start+visible) {
@@ -139,15 +147,19 @@ func (m model) discovery(width int, d homeLayout) string {
 	return strings.Join(rows, "\n")
 }
 
-func (m model) discoveryCard(index, width, height int, selected bool) string {
+func (m model) discoveryCard(index, width, height int, selection int) string {
 	t := m.theme
 	track := m.catalog[index]
-	style, marker := t.panel, "  "
-	if selected {
+	style, marker := t.base, "  "
+	if selection == m.selected {
 		style, marker = t.elevated, "› "
 		if m.focus == tracksFocus {
 			style = t.selected
 		}
+	}
+	style = m.hoverStyle(style, trackAction, selection)
+	if m.player.Playing() && m.player.Index() == index && marker == "  " {
+		marker = "▶ "
 	}
 	if height <= 4 {
 		cover := m.cover(index, 8, height)
@@ -158,4 +170,14 @@ func (m model) discoveryCard(index, width, height int, selected bool) string {
 	art := m.cover(index, width, height-2)
 	return strings.Join([]string{art, label(style.Bold(true), width, marker+track.Title),
 		label(style, width, "  "+track.Artist)}, "\n")
+}
+
+func (m model) featureControls(width, x, y int, artist string) string {
+	t := m.theme
+	return line(t.card, 2, "") +
+		m.control(t.card, prevAction, x+2, y, 3, " ‹ ") +
+		m.control(t.button, playAction, x+5, y, 3, " "+m.playSymbol()+" ") +
+		m.control(t.card, nextAction, x+8, y, 3, " › ") +
+		m.control(t.card, favoriteAction, x+11, y, 4, "  "+m.favorite()) +
+		label(t.muted.Background(t.card.GetBackground()), width-15, artist)
 }

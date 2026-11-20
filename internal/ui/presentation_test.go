@@ -61,7 +61,7 @@ func TestDiscoveryAndHistory(t *testing.T) {
 		t.Fatal("forward should reopen Queue")
 	}
 	m, _ = press(m, ',', ",")
-	if m.page != settings || !strings.Contains(m.render(), "ARTWORK") {
+	if m.dialog.kind != dialogSettings || m.page != queue || !strings.Contains(m.render(), "ARTWORK") {
 		t.Fatal("settings shortcut did not open diagnostics")
 	}
 }

@@ -17,8 +17,12 @@ func (m model) trackLine(width, index int, track domain.Track) string {
 			style = m.theme.selected
 		}
 	}
+	style = m.hoverStyle(style, trackAction, index)
 	if m.page == queue && m.search.Value() == "" && index == m.player.Index() && index != m.selected {
 		marker = "•"
+	}
+	if m.player.Playing() && track == m.catalog[m.player.Index()] && marker == " " {
+		marker = "▶"
 	}
 	title := fmt.Sprintf("  %s %02d  %s", marker, index+1, track.Title)
 	duration := formatTime(track.Duration)

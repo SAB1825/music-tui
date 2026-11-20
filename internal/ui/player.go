@@ -27,6 +27,7 @@ func (m model) playSymbol() string {
 
 func (m model) playerBar() string {
 	t, w, h := m.theme, m.width, m.playerHeight()
+	top := m.height - h
 	track, ok := m.player.Track()
 	title := "No track queued"
 	if ok {
@@ -37,7 +38,7 @@ func (m model) playerBar() string {
 	}
 	if h == 2 {
 		return label(t.panel.Bold(true), w, "  "+m.playerStatus()+" · "+title) + "\n" +
-			label(t.panel, w, fmt.Sprintf("␣ %s   p/n Skip   ± %d%%", m.playSymbol(), m.player.Volume()))
+			m.compactControls(w, top+1)
 	}
 	leftW, rightW := w*29/100, w*23/100
 	if w < 100 {
@@ -49,38 +50,37 @@ func (m model) playerBar() string {
 	centerW := w - leftW - rightW
 	if centerW == 0 {
 		return strings.Join(padRows([]string{
-			line(t.rule, w, strings.Repeat("─", w)),
+			line(t.panel, w, ""),
 			label(t.panel.Bold(true), w, "  "+m.playerStatus()+" · "+title),
-			m.progress(t.panel, w, track.Duration),
-			label(t.panel, w, fmt.Sprintf("  ␣ %s  p/n  ± %d%%", m.playSymbol(), m.player.Volume())),
+			m.progress(t.panel, w, track.Duration, 0, top+2),
+			m.compactControls(w, top+3),
 		}, t.panel, w, h), "\n")
 	}
 	height := h - 1
 	artWidth := playerCoverWidth(w)
+	titleWidth := leftW - artWidth - 3
 	metadata := []string{
-		label(t.panel.Bold(true), leftW-artWidth, "  "+title+"  "+m.favorite()),
+		label(t.panel.Bold(true), titleWidth, "  "+title) + m.control(t.panel, favoriteAction, artWidth+titleWidth, top+1, 3, " "+m.favorite()+" "),
 		label(t.muted.Background(t.panel.GetBackground()), leftW-artWidth, "  "+track.Artist),
 		label(t.dim.Background(t.panel.GetBackground()), leftW-artWidth, "  "+m.playerStatus()+" · Mock Music"),
 	}
 	left := lipgloss.JoinHorizontal(lipgloss.Top, m.cover(max(0, m.player.Index()), artWidth, height),
 		strings.Join(padRows(metadata, t.panel, leftW-artWidth, height), "\n"))
-	center := []string{line(t.panel, centerW, ""), m.controls(centerW), m.progress(t.panel, centerW, track.Duration)}
-	utilities := "  u Queue  ·  , Settings"
-	if rightW < 24 {
-		utilities = "  u Queue"
-	}
+	center := []string{line(t.panel, centerW, ""), m.controls(centerW, leftW, top+2),
+		m.progress(t.panel, centerW, track.Duration, leftW, top+3)}
+	rightX := leftW + centerW
 	right := []string{
 		line(t.panel, rightW, ""),
-		label(t.panel.Bold(true), rightW, fmt.Sprintf("  Vol %3d%%  %s", m.player.Volume(), volumeMeter(m.player.Volume(), min(10, max(0, rightW-12))))),
-		label(t.muted.Background(t.panel.GetBackground()), rightW, utilities),
+		m.volumeControl(rightW, rightX, top+2),
+		m.control(t.panel, queueAction, rightX, top+3, rightW, "  u Queue"),
 	}
 	dock := lipgloss.JoinHorizontal(lipgloss.Top, left,
 		strings.Join(padRows(center, t.panel, centerW, height), "\n"),
 		strings.Join(padRows(right, t.panel, rightW, height), "\n"))
-	return line(t.rule, w, strings.Repeat("─", w)) + "\n" + dock
+	return line(t.panel, w, "") + "\n" + dock
 }
 
-func (m model) controls(width int) string {
+func (m model) controls(width, x, y int) string {
 	t := m.theme
 	state := func(on bool) string {
 		if on {
@@ -88,11 +88,47 @@ func (m model) controls(width int) string {
 		}
 		return "○"
 	}
-	shuffle, repeat := state(m.player.Shuffle()), state(m.player.Repeat())
-	side := (width - 3) / 2
-	return t.panel.Width(side).Align(lipgloss.Right).Render(shuffle+"⇄   ‹  ") +
-		line(t.button, 3, " "+m.playSymbol()+" ") +
-		line(t.panel, width-side-3, "  ›   ↻"+repeat)
+	const controlsWidth = 19
+	if width < controlsWidth {
+		return m.compactControlsAt(width, x, y)
+	}
+	left := (width - controlsWidth) / 2
+	start := x + left
+	return line(t.panel, left, "") +
+		m.control(t.panel, shuffleAction, start, y, 4, state(m.player.Shuffle())+"⇄") +
+		m.control(t.panel, prevAction, start+4, y, 4, " ‹ ") +
+		m.control(t.button, playAction, start+8, y, 3, " "+m.playSymbol()+" ") +
+		m.control(t.panel, nextAction, start+11, y, 4, "  › ") +
+		m.control(t.panel, repeatAction, start+15, y, 4, " ↻"+state(m.player.Repeat())) +
+		line(t.panel, width-left-controlsWidth, "")
+}
+
+func (m model) compactControls(width, y int) string { return m.compactControlsAt(width, 0, y) }
+
+func (m model) compactControlsAt(width, x, y int) string {
+	t := m.theme
+	if width < 9 {
+		return m.control(t.button, playAction, x, y, width, m.playSymbol())
+	}
+	controls := m.control(t.panel, prevAction, x, y, 3, " ‹ ") +
+		m.control(t.button, playAction, x+3, y, 3, " "+m.playSymbol()+" ") +
+		m.control(t.panel, nextAction, x+6, y, 3, " › ")
+	if width >= 23 {
+		return controls + m.volumeControl(width-9, x+9, y)
+	}
+	return controls + line(t.panel, width-9, "")
+}
+
+func (m model) volumeControl(width, x, y int) string {
+	t := m.theme
+	prefix := fmt.Sprintf("  Vol %3d%%  ", m.player.Volume())
+	start := lipgloss.Width(prefix)
+	count := min(10, max(0, width-start))
+	if count == 0 {
+		return label(t.panel, width, prefix)
+	}
+	return line(t.panel, start, prefix) + m.control(t.panel, volumeAction, x+start, y, count, volumeMeter(m.player.Volume(), count)) +
+		line(t.panel, width-start-count, "")
 }
 
 func playerCoverWidth(width int) int {
@@ -107,7 +143,7 @@ func volumeMeter(volume, cells int) string {
 	return strings.Repeat("━", filled) + strings.Repeat("─", cells-filled)
 }
 
-func (m model) progress(style lipgloss.Style, width int, duration time.Duration) string {
+func (m model) progress(style lipgloss.Style, width int, duration time.Duration, x, y int) string {
 	times := formatTime(m.player.Position())
 	total := formatTime(duration)
 	n := width - lipgloss.Width(times) - lipgloss.Width(total) - 6
@@ -118,6 +154,10 @@ func (m model) progress(style lipgloss.Style, width int, duration time.Duration)
 	if duration > 0 {
 		filled = min(n, max(0, int(float64(n)*float64(m.player.Position())/float64(duration))))
 	}
+	if duration > 0 {
+		m.region(seekAction, 0, x+lipgloss.Width(times)+3, y, n, 1)
+	}
+	style = m.hoverStyle(style, seekAction, 0)
 	bar := m.theme.accent.Background(style.GetBackground()).Render(strings.Repeat("━", filled)) +
 		m.theme.dim.Background(style.GetBackground()).Render(strings.Repeat("─", n-filled))
 	return style.Render("  "+times+" ") + bar + style.Render(" "+total+"  ")
