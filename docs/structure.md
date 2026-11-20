@@ -9,3 +9,6 @@
 | `internal/ui` | Bubble Tea state, input, responsive views, and theme |
 | `docs` | Project specification, developer documentation, and visual reference |
 | `scripts` and `.githooks` | Local quality checks and pre-commit entry point |
+| `internal/artwork` | Original terminal-cell cover artwork |
+| `internal/config` | Optional XDG TOML configuration and validation |
+| `internal/visualizer` | CAVA subprocess, bounded raw frames, and normalization |

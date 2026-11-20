@@ -77,7 +77,7 @@ func TestSearchFocusAndPaste(t *testing.T) {
 }
 
 func TestLayoutFitsTerminal(t *testing.T) {
-	for _, size := range [][2]int{{1, 1}, {8, 4}, {20, 5}, {32, 10}, {65, 13}, {66, 13}, {80, 24}, {120, 34}} {
+	for _, size := range [][2]int{{1, 1}, {8, 4}, {20, 5}, {32, 10}, {65, 13}, {66, 13}, {80, 24}, {120, 35}, {160, 45}} {
 		for _, mode := range []string{"tracks", "sidebar", "search", "help"} {
 			w, h := size[0], size[1]
 			t.Run(fmt.Sprintf("%dx%d/%s", w, h, mode), func(t *testing.T) {
@@ -103,11 +103,8 @@ func TestLayoutFitsTerminal(t *testing.T) {
 						t.Fatalf("row %d rendered %d cells, want at most %d", i, width, w)
 					}
 				}
-				playerRow := lines[h-m.playerHeight()]
-				if m.playerHeight() == 4 {
-					playerRow = lines[h-m.playerHeight()+1]
-				}
-				if w >= 20 && !strings.Contains(playerRow, "Paused") {
+				dock := strings.Join(lines[h-m.playerHeight():], "\n")
+				if w >= 20 && !strings.Contains(dock, "Paused") {
 					t.Fatal("player is missing from the bottom of the view")
 				}
 			})

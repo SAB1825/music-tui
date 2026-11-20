@@ -55,3 +55,20 @@ func TestPausedSkipAndVolume(t *testing.T) {
 		t.Fatal("empty queue should stay idle")
 	}
 }
+
+func TestRepeatAndShuffle(t *testing.T) {
+	s := NewSimulation([]domain.Track{{Duration: time.Second}, {Duration: time.Second}})
+	s.Play(1)
+	s.ToggleRepeat()
+	s.Advance(1500 * time.Millisecond)
+	if s.Index() != 0 || s.Position() != 500*time.Millisecond || !s.Repeat() {
+		t.Fatal("repeat should wrap to the start")
+	}
+	s.ToggleRepeat()
+	s.ToggleShuffle()
+	s.Play(1)
+	s.Advance(time.Second)
+	if s.Index() != 0 || !s.Shuffle() || !s.Playing() {
+		t.Fatal("shuffle should advance to a different track")
+	}
+}

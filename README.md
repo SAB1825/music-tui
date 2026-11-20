@@ -1,6 +1,6 @@
 # Afterhours Music
 
-Afterhours Music is a keyboard-first terminal music player written in Go. Milestone 1 includes a Home screen, a browsable mock library, local search, and an always-visible player with simulated playback. The warm palette and layout take inspiration from the [project reference](docs/references/music-ui.png).
+Afterhours Music is a keyboard-first terminal music player written in Go. Browse the featured player and discovery cards, search the local catalog, or open the library and session playlists. The bottom player stays visible throughout. The warm palette and layout take inspiration from the [project reference](docs/references/music-ui.png).
 
 ## Run locally
 
@@ -16,18 +16,46 @@ To install the command from this checkout, run `go install ./cmd/music-tui` and 
 
 | Key | Action |
 | --- | --- |
-| ↑ / ↓ or `k` / `j` | Move through tracks or menu items |
-| Enter | Play the selected track or open the selected screen |
+| Arrow keys or `h` / `j` / `k` / `l` | Move through cards, tracks, menu items, or filters |
+| Enter | Play the selected track, open the selected screen, or confirm the filter |
+| `c` | Focus the Home discovery filters |
+| `[` / `]` | Go back or forward |
+| `u` / `,` | Open Queue or Settings |
 | Tab / Shift+Tab | Switch between the menu and track list |
 | `/` | Filter local tracks by title, artist, or album |
 | Enter in search | Keep the filter and focus the results |
-| Esc | Clear search, return to tracks, or close help |
+| Esc | Clear search, return to tracks, go back, or close help |
 | Space | Play or pause |
 | `p` / `n` | Cue the previous or next catalog track |
 | `+` / `-` | Adjust simulated volume |
+| `f` | Favorite or unfavorite the cued track |
+| `s` / `r` | Toggle shuffle or repeat for automatic playback |
 | `?` | Show keyboard shortcuts |
 | `q` / Ctrl+C | Quit. Use Ctrl+C while editing search. |
 
-The player progresses through the catalog while playing and stops at the end. Playback is silent and state lasts for the current session. The built-in catalog is the only source in this milestone. The app requires no configuration.
+## Optional CAVA spectrum
+
+On Arch Linux, CAVA can be installed with `sudo pacman -S cava`. The app can run without it. Open **Settings** with **,** to see backend or configuration diagnostics.
+
+The default source is the monitor of the default PulseAudio or PipeWire-Pulse output. It can include sound from other applications. Afterhours Music itself still simulates playback silently. A quiet monitor shows an idle spectrum.
+
+To customize the visualizer, create `$XDG_CONFIG_HOME/music-tui/config.toml` or `~/.config/music-tui/config.toml` if `XDG_CONFIG_HOME` is unset. Restart Afterhours Music after editing it.
+
+```toml
+[visualizer]
+enabled = true
+backend = "cava"
+bars = 24
+framerate = 20
+source = "auto"
+```
+
+Set `enabled = false` to turn off capture, or use a specific `.monitor` name from `pactl list short sources`. Supported values are 8–64 source bars and 15–25 frames per second. The panel condenses the source bars to fit. The TOML reader is `github.com/pelletier/go-toml/v2`.
+
+## Current scope
+
+The built-in mock catalog is the sole provider. Favorites and recently played tracks last for the session. On Repeat, Night Drive, and Daybreak Tapes are mock collections. Radio, Downloads, and playlist creation are marked unavailable.
+
+Album and playlist artwork uses original terminal-cell illustrations. Kitty graphics image placements are deferred because their redraw and cleanup behavior has yet to be verified with Bubble Tea v2 under tmux.
 
 See [development checks](docs/development.md), [architecture](docs/architecture.md), and [repository structure](docs/structure.md).

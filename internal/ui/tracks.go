@@ -17,6 +17,9 @@ func (m model) trackLine(width, index int, track domain.Track) string {
 			style = m.theme.selected
 		}
 	}
+	if m.page == queue && m.search.Value() == "" && index == m.player.Index() && index != m.selected {
+		marker = "•"
+	}
 	title := fmt.Sprintf("  %s %02d  %s", marker, index+1, track.Title)
 	duration := formatTime(track.Duration)
 	if width >= 64 {

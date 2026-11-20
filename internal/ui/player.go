@@ -3,56 +3,122 @@ package ui
 import (
 	"fmt"
 	"strings"
+	"time"
 
-	"github.com/charmbracelet/x/ansi"
+	"charm.land/lipgloss/v2"
 )
 
-func (m model) playerBar() string {
-	t, w := m.theme, m.width
-	track, ok := m.player.Track()
-	status := "Paused"
+func (m model) playerStatus() string {
 	if m.player.Playing() {
-		status = "Playing"
+		return "Playing"
 	}
-	if !ok {
-		status = "Idle"
+	if m.player.Index() >= 0 {
+		return "Paused"
 	}
+	return "Idle"
+}
+
+func (m model) playSymbol() string {
+	if m.player.Playing() {
+		return "Ⅱ"
+	}
+	return "▶"
+}
+
+func (m model) playerBar() string {
+	t, w, h := m.theme, m.width, m.playerHeight()
+	track, ok := m.player.Track()
 	title := "No track queued"
 	if ok {
 		title = track.Title
 	}
-	now := "  " + status + "  ·  " + title
-	if ok && w >= 48 {
-		now += "  /  " + track.Artist
+	if h == 1 {
+		return label(t.panel.Bold(true), w, m.playerStatus()+" · "+title)
 	}
-	if m.playerHeight() == 1 {
-		return line(t.panel.Bold(true), w, strings.TrimSpace(now))
+	if h == 2 {
+		return label(t.panel.Bold(true), w, "  "+m.playerStatus()+" · "+title) + "\n" +
+			label(t.panel, w, fmt.Sprintf("␣ %s   p/n Skip   ± %d%%", m.playSymbol(), m.player.Volume()))
 	}
-	controls := fmt.Sprintf("  Space Play/Pause  ·  p/n Skip  ·  +/- Volume %d%%", m.player.Volume())
-	if w < 56 {
-		controls = fmt.Sprintf("  ␣ Play/Pause  p/n  ± %d%%", m.player.Volume())
+	leftW, rightW := w*29/100, w*23/100
+	if w < 100 {
+		leftW, rightW = w*34/100, w*21/100
 	}
-	if w < 30 {
-		controls = fmt.Sprintf("␣ Play p/n ± %d%%", m.player.Volume())
+	if w < 52 {
+		leftW, rightW = w, 0
 	}
-	if m.playerHeight() == 2 {
-		return line(t.panel.Bold(true), w, now) + "\n" + line(t.panel, w, controls)
+	centerW := w - leftW - rightW
+	if centerW == 0 {
+		return strings.Join(padRows([]string{
+			line(t.rule, w, strings.Repeat("─", w)),
+			label(t.panel.Bold(true), w, "  "+m.playerStatus()+" · "+title),
+			m.progress(t.panel, w, track.Duration),
+			label(t.panel, w, fmt.Sprintf("  ␣ %s  p/n  ± %d%%", m.playSymbol(), m.player.Volume())),
+		}, t.panel, w, h), "\n")
 	}
+	height := h - 1
+	artWidth := playerCoverWidth(w)
+	metadata := []string{
+		label(t.panel.Bold(true), leftW-artWidth, "  "+title+"  "+m.favorite()),
+		label(t.muted.Background(t.panel.GetBackground()), leftW-artWidth, "  "+track.Artist),
+		label(t.dim.Background(t.panel.GetBackground()), leftW-artWidth, "  "+m.playerStatus()+" · Mock Music"),
+	}
+	left := lipgloss.JoinHorizontal(lipgloss.Top, m.cover(max(0, m.player.Index()), artWidth, height),
+		strings.Join(padRows(metadata, t.panel, leftW-artWidth, height), "\n"))
+	center := []string{line(t.panel, centerW, ""), m.controls(centerW), m.progress(t.panel, centerW, track.Duration)}
+	utilities := "  u Queue  ·  , Settings"
+	if rightW < 24 {
+		utilities = "  u Queue"
+	}
+	right := []string{
+		line(t.panel, rightW, ""),
+		label(t.panel.Bold(true), rightW, fmt.Sprintf("  Vol %3d%%  %s", m.player.Volume(), volumeMeter(m.player.Volume(), min(10, max(0, rightW-12))))),
+		label(t.muted.Background(t.panel.GetBackground()), rightW, utilities),
+	}
+	dock := lipgloss.JoinHorizontal(lipgloss.Top, left,
+		strings.Join(padRows(center, t.panel, centerW, height), "\n"),
+		strings.Join(padRows(right, t.panel, rightW, height), "\n"))
+	return line(t.rule, w, strings.Repeat("─", w)) + "\n" + dock
+}
 
-	times := formatTime(m.player.Position()) + " / " + formatTime(track.Duration)
-	barWidth := min(44, w-ansi.StringWidth(times)-5)
-	progress := "  " + times
-	if barWidth > 0 {
-		filled := 0
-		if track.Duration > 0 {
-			filled = int(float64(barWidth) * float64(m.player.Position()) / float64(track.Duration))
+func (m model) controls(width int) string {
+	t := m.theme
+	state := func(on bool) string {
+		if on {
+			return "●"
 		}
-		progress += "  " + strings.Repeat("━", filled) + strings.Repeat("─", barWidth-filled)
+		return "○"
 	}
-	return strings.Join([]string{
-		line(t.rule, w, strings.Repeat("─", w)),
-		line(t.panel.Bold(true), w, now),
-		line(t.accent, w, progress),
-		line(t.panel, w, controls),
-	}, "\n")
+	shuffle, repeat := state(m.player.Shuffle()), state(m.player.Repeat())
+	side := (width - 3) / 2
+	return t.panel.Width(side).Align(lipgloss.Right).Render(shuffle+"⇄   ‹  ") +
+		line(t.button, 3, " "+m.playSymbol()+" ") +
+		line(t.panel, width-side-3, "  ›   ↻"+repeat)
+}
+
+func playerCoverWidth(width int) int {
+	if width < 100 {
+		return 6
+	}
+	return 8
+}
+
+func volumeMeter(volume, cells int) string {
+	filled := (volume*cells + 99) / 100
+	return strings.Repeat("━", filled) + strings.Repeat("─", cells-filled)
+}
+
+func (m model) progress(style lipgloss.Style, width int, duration time.Duration) string {
+	times := formatTime(m.player.Position())
+	total := formatTime(duration)
+	n := width - lipgloss.Width(times) - lipgloss.Width(total) - 6
+	if n <= 0 {
+		return label(style, width, "  "+times+" / "+total)
+	}
+	filled := 0
+	if duration > 0 {
+		filled = min(n, max(0, int(float64(n)*float64(m.player.Position())/float64(duration))))
+	}
+	bar := m.theme.accent.Background(style.GetBackground()).Render(strings.Repeat("━", filled)) +
+		m.theme.dim.Background(style.GetBackground()).Render(strings.Repeat("─", n-filled))
+	return style.Render("  "+times+" ") + bar + style.Render(" "+total+"  ")
 }
