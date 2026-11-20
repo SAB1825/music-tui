@@ -39,6 +39,7 @@ type model struct {
 	hover            action
 	screen           screenFrame
 	drawing          *screenFrame
+	online           providerState
 	clock            uint64
 	history          []page
 	historyIndex     int
@@ -75,6 +76,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	next, cmd := m.update(msg)
 	if _, motion := msg.(tea.MouseMotionMsg); !motion || next.hover != m.hover {
 		next.screen = next.draw()
+		cmd = tea.Batch(cmd, next.startThumbnails())
 	}
 	return next, cmd
 }
@@ -109,6 +111,15 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 			m.spectrumError = msg.Err.Error()
 		}
 		cmd = receiveSpectrum(m.spectrumEvents)
+	case catalogResult:
+		m.applyCatalog(msg)
+	case thumbnailResult:
+		m.applyThumbnails(msg)
+	case browserResult:
+		m.online.browserBusy = false
+		if msg.failed && msg.serial == m.online.serial && m.remote() && m.dialog.kind == dialogNone {
+			m.showDialog(dialogBrowserError)
+		}
 	case tea.MouseMsg:
 		return m.updateMouse(msg)
 	case tea.KeyPressMsg:
@@ -146,6 +157,10 @@ func (m model) updateKey(key tea.KeyPressMsg) (model, tea.Cmd) {
 		case "enter", "tab", "shift+tab":
 			m.search.Blur()
 			m.focus = tracksFocus
+			if m.remote() && name == "enter" {
+				cmd := m.startCatalog(m.search.Value(), false, false)
+				return m, cmd
+			}
 			return m, nil
 		}
 		cmd := m.updateSearch(key)
@@ -155,13 +170,39 @@ func (m model) updateKey(key tea.KeyPressMsg) (model, tea.Cmd) {
 		return m, tea.Quit
 	}
 
+	if m.remote() {
+		switch name {
+		case "space", "n", "p", "s", "r", "f", "c", "u", "+", "=", "-", "shift+left", "shift+right":
+			return m, nil
+		}
+	}
 	playing := m.player.Playing()
 	restart := false
 	switch name {
+	case "v":
+		if len(m.online.registry.Entries()) > 0 {
+			cmd := m.showDialog(dialogProviders)
+			return m, cmd
+		}
+	case "g":
+		if m.remote() {
+			cmd := m.choosePage(publicPlaylist)
+			return m, cmd
+		}
+	case "m":
+		if m.remote() {
+			cmd := m.nextCatalogPage()
+			return m, cmd
+		}
 	case "?":
 		cmd := m.showDialog(dialogHelp)
 		return m, cmd
 	case "esc":
+		if m.remote() && m.online.query != "" {
+			m.clearCatalog()
+			m.resetPage()
+			return m, nil
+		}
 		if m.search.Value() == "" && m.focus == tracksFocus {
 			m.travel(-1)
 		} else {
@@ -215,6 +256,9 @@ func (m model) updateKey(key tea.KeyPressMsg) (model, tea.Cmd) {
 		if m.focus == sidebarFocus {
 			cmd := m.choosePage(m.sidebar)
 			return m, cmd
+		} else if m.remote() {
+			cmd := m.openCatalogURL(m.selectedURL())
+			return m, cmd
 		} else if m.focus == categoryFocus {
 			m.focus = tracksFocus
 		} else if matches := m.matches(); m.selected < len(matches) {
@@ -253,7 +297,7 @@ func (m *model) updateSearch(msg tea.Msg) tea.Cmd {
 	before := m.search.Value()
 	var cmd tea.Cmd
 	m.search, cmd = m.search.Update(msg)
-	if before != m.search.Value() {
+	if !m.remote() && before != m.search.Value() {
 		m.selected, m.offset = 0, 0
 	}
 	return cmd

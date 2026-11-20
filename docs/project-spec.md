@@ -386,6 +386,10 @@ Start with a mock provider for development.
 
 Then implement at least one real, authorized streaming integration.
 
+## Implemented catalog milestone
+
+Milestone 2.0 ships YouTube Data API v3 catalog discovery alongside the offline Mock provider. It adds explicit search, batched metadata, paginated results, public playlists, temporary thumbnail display, and browser opening. Native audio playback remains a separate milestone. See [Music sources](streaming.md) for implemented behavior.
+
 ## Provider Requirements
 
 The provider abstraction should support capabilities such as:
@@ -782,7 +786,11 @@ Acceptance criteria:
 - Terminal resizing works.
 - Tests pass.
 
-## Milestone 2: Real Audio Playback
+## Milestone 2.0: YouTube Catalog
+
+Delivered the official YouTube Data API v3 catalog adapter, provider selection, explicit search, metadata enrichment, thumbnails, and public playlists. YouTube videos open in a browser.
+
+## Next milestone: Authorized Native Audio Playback
 
 Deliver:
 
@@ -801,7 +809,7 @@ Acceptance criteria:
 - Playback state stays synchronized with mpv.
 - mpv shuts down cleanly.
 
-## Milestone 3: Streaming Provider
+## Later milestone: Authorized Streaming Playback Provider
 
 Deliver:
 

@@ -18,3 +18,9 @@ The entry point owns CAVA's lifetime. CAVA uses a temporary configuration, a Pul
 The rendering pass records each interactive rectangle while drawing the corresponding control. The model publishes the rendered content and those rectangles as one snapshot. Resize, scrolling, and page changes replace the snapshot together. Bubble Tea v2 delivers click, wheel, and motion events in terminal cells, and pointer motion within an existing target reuses the rendered frame.
 
 A Lip Gloss compositor places one rounded dialog over the application. While it is open, only the dialog publishes targets, and keyboard input goes to the dialog. Settings and Help preserve the underlying focus. Removing a session playlist requires its confirmation action. The playlist data lives in memory.
+
+## Online catalog
+
+The catalog registry resolves an available provider independently of playback. Search, batched video metadata and public playlists are separate capabilities under `internal/providers`. The command registers Mock and YouTube, and injects the chosen entry into the existing model. The YouTube adapter owns endpoint parameters, response mapping, credential handling and bounded retries.
+
+An Enter submission or explicit pagination starts a cancellable Bubble Tea command. Generation checks reject stale replies. The online view keeps its own results and never replaces the mock playback queue. Thumbnails travel through a credential-free loader with network, byte and pixel bounds. The UI requests visible results in small batches, keeps up to 64 cell-rendered covers in the current view and discards them when the view changes.

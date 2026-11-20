@@ -18,7 +18,8 @@ func TestDecodeVisualizer(t *testing.T) {
 		{"[visualizer]\nsource = 'fixture.monitor'", true},
 		{"[visualizer]\nenabledd = true", false},
 	} {
-		cfg, err := decode(strings.NewReader(tc.input))
+		loaded, err := decode(strings.NewReader(tc.input))
+		cfg := loaded.Visualizer
 		if (err == nil) != tc.ok {
 			t.Fatalf("%q: got %v", tc.input, err)
 		}

@@ -33,6 +33,9 @@ const (
 	dialogButtonAction
 	dialogInputAction
 	deleteAction
+	moreAction
+	openVideoAction
+	openPlaylistAction
 )
 
 type action struct {
@@ -146,6 +149,15 @@ func (m model) updateMouse(msg tea.MouseMsg) (model, tea.Cmd) {
 		m.travel(-1)
 	case forwardAction:
 		m.travel(1)
+	case moreAction:
+		cmd := m.nextCatalogPage()
+		return m, cmd
+	case openVideoAction:
+		cmd := m.openCatalogURL(m.selectedURL())
+		return m, cmd
+	case openPlaylistAction:
+		cmd := m.openCatalogURL(m.online.playlist.ExternalURL)
+		return m, cmd
 	case deleteAction:
 		cmd := m.showDialog(dialogDelete)
 		return m, cmd
@@ -226,5 +238,5 @@ func clampScroll(offset, count, visible int) int {
 }
 
 func (a action) opensDialog() bool {
-	return a.kind == navigateAction && (page(a.index) == settings || page(a.index) == createPlaylist)
+	return a.kind == navigateAction && (page(a.index) == settings || page(a.index) == createPlaylist || page(a.index) == publicPlaylist || page(a.index) == providersPage)
 }

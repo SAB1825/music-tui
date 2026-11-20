@@ -20,6 +20,10 @@ const (
 	dialogError
 	dialogPlaylist
 	dialogDelete
+	dialogProviders
+	dialogPublicPlaylist
+	dialogBrowserError
+	dialogCatalogError
 )
 
 type dialog struct {
@@ -38,12 +42,23 @@ type dialogContent struct {
 func (m *model) showDialog(kind dialogKind) tea.Cmd {
 	m.dialog = dialog{kind: kind}
 	m.hover = action{}
-	if kind == dialogPlaylist {
+	if kind == dialogProviders {
+		for i, entry := range m.online.registry.Entries() {
+			if entry.ID == m.online.active.ID {
+				m.dialog.selected = i
+			}
+		}
+	}
+	if kind == dialogPlaylist || kind == dialogPublicPlaylist {
 		m.dialog.input = textinput.New()
 		m.dialog.input.SetStyles(m.theme.inputStyles())
 		m.dialog.input.Prompt = ""
 		m.dialog.input.Placeholder = "Playlist name"
 		m.dialog.input.CharLimit = 60
+		if kind == dialogPublicPlaylist {
+			m.dialog.input.Placeholder = "Public YouTube playlist URL or ID"
+			m.dialog.input.CharLimit = 512
+		}
 		m.dialog.input.SetWidth(max(1, min(64, m.width)-8))
 		return m.dialog.input.Focus()
 	}
@@ -61,6 +76,26 @@ func (m *model) dismissDialog() tea.Cmd {
 
 func (m model) dialogContent() dialogContent {
 	switch m.dialog.kind {
+	case dialogProviders:
+		var lines, buttons []string
+		for _, entry := range m.online.registry.Entries() {
+			mark := "○ "
+			if entry.ID == m.online.active.ID {
+				mark = "● "
+			}
+			lines = append(lines, mark+entry.Name)
+			if entry.Unavailable != "" {
+				lines = append(lines, strings.Split(ansi.Wrap(entry.Unavailable, max(1, min(m.width, 64)-6), ""), "\n")...)
+			}
+			buttons = append(buttons, entry.Name)
+		}
+		return dialogContent{"Music providers", lines, buttons, false}
+	case dialogPublicPlaylist:
+		return dialogContent{"Public playlist", []string{"Enter a public YouTube playlist URL or ID."}, []string{"Cancel", "Load"}, true}
+	case dialogCatalogError:
+		return dialogContent{"Catalog unavailable", strings.Split(ansi.Wrap(m.online.lastNotice, max(1, min(m.width, 64)-6), ""), "\n"), []string{"Close"}, false}
+	case dialogBrowserError:
+		return dialogContent{"Could not open browser", []string{"Check that your system has a default web browser."}, []string{"Close"}, false}
 	case dialogSettings:
 		buttons := []string{"Close"}
 		if m.spectrumError != "" {
@@ -83,6 +118,7 @@ func (m model) dialogContent() dialogContent {
 			"Tab          Switch menu / tracks",
 			"c            Focus filters",
 			"[ / ]        Back / forward",
+			"v / g / m    Providers / public playlist / more results",
 			"n / p        Next / previous",
 			"Shift ←/→    Seek 5 seconds",
 			"+ / -        Volume",
@@ -170,14 +206,21 @@ func (m model) overlay(base string) string {
 }
 
 func (m model) dialogButtonIndex() int {
-	if m.dialog.kind == dialogPlaylist {
+	if m.dialog.kind == dialogPlaylist || m.dialog.kind == dialogPublicPlaylist {
 		return m.dialog.selected - 1
 	}
 	return m.dialog.selected
 }
 
 func (m model) buttonEnabled(i int) bool {
-	return m.dialog.kind != dialogPlaylist || i != 1 || strings.TrimSpace(m.dialog.input.Value()) != ""
+	if m.dialog.kind == dialogProviders {
+		entries := m.online.registry.Entries()
+		return i >= 0 && i < len(entries) && entries[i].Catalog != nil
+	}
+	if m.dialog.kind == dialogPlaylist || m.dialog.kind == dialogPublicPlaylist {
+		return i != 1 || strings.TrimSpace(m.dialog.input.Value()) != ""
+	}
+	return true
 }
 
 func (m model) activateDialog(i int) (model, tea.Cmd) {
@@ -185,6 +228,16 @@ func (m model) activateDialog(i int) (model, tea.Cmd) {
 		return m, nil
 	}
 	switch {
+	case m.dialog.kind == dialogProviders:
+		m.selectProvider(m.online.registry.Entries()[i])
+	case m.dialog.kind == dialogPublicPlaylist && i == 1:
+		query := m.dialog.input.Value()
+		m.dismissDialog()
+		m.search.Reset()
+		m.search.Blur()
+		m.focus = tracksFocus
+		cmd := m.startCatalog(query, true, false)
+		return m, cmd
 	case m.dialog.kind == dialogSettings && i == 1:
 		cmd := m.showDialog(dialogError)
 		return m, cmd
@@ -280,7 +333,7 @@ func (m *model) scrollDialog(step int) {
 }
 
 func (m model) updateDialogInput(msg tea.Msg) (model, tea.Cmd) {
-	if m.dialog.kind == dialogPlaylist && m.dialog.input.Focused() {
+	if (m.dialog.kind == dialogPlaylist || m.dialog.kind == dialogPublicPlaylist) && m.dialog.input.Focused() {
 		var cmd tea.Cmd
 		m.dialog.input, cmd = m.dialog.input.Update(msg)
 		return m, cmd

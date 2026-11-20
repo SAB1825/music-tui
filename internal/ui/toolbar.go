@@ -5,7 +5,7 @@ import (
 )
 
 const toolbarPrefix = 25
-const toolbarSuffix = 20
+const toolbarSuffix = 22
 
 func (m model) searchWidth() int {
 	if m.width >= 72 && m.layout().toolbar == 3 {
@@ -57,12 +57,12 @@ func (m model) toolbar(l layout) string {
 	}
 	sw := m.searchWidth()
 	m.region(searchAction, 0, toolbarPrefix, 1, sw, 1)
-	sx := toolbarPrefix + sw + 8
+	sx := toolbarPrefix + sw + 10
 	m.region(navigateAction, int(settings), sx, 1, 12, 1)
 	return strings.Join([]string{
 		line(t.base, w, ""),
 		brand + back + forward + label(m.hoverStyle(style, searchAction, 0), sw, search) +
-			line(t.dim, 8, "   MOCK") + line(m.hoverStyle(t.base, navigateAction, int(settings)), 12, "  Settings"),
+			label(t.dim, 10, "  "+m.providerName()) + line(m.hoverStyle(t.base, navigateAction, int(settings)), 12, "  Settings"),
 		line(t.base, w, ""),
 	}, "\n")
 }

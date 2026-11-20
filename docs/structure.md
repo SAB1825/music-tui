@@ -12,3 +12,4 @@
 | `internal/artwork` | Original terminal-cell cover artwork |
 | `internal/config` | Optional XDG TOML configuration and validation |
 | `internal/visualizer` | CAVA subprocess, bounded raw frames, and normalization |
+| `internal/providers` | Catalog capabilities, registry, safe errors, and mock and YouTube adapters |

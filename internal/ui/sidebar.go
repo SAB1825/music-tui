@@ -14,12 +14,19 @@ type menuRow struct {
 }
 
 func (m model) menuRows() []menuRow {
+	if m.remote() {
+		return []menuRow{{name: "ONLINE CATALOG", section: true}, {page: home, name: "⌂  Discover"},
+			{page: publicPlaylist, name: "▤  Public playlist"}, {page: providersPage, name: "◉  Music providers"}}
+	}
 	rows := []menuRow{
 		{name: "BROWSE", section: true}, {page: home, name: "⌂  Home"}, {page: library, name: "▤  Library"},
 		{page: radio, name: "○  Radio · off"}, {page: downloads, name: "↓  Downloads · off"},
 		{name: "PLAYLISTS", section: true}, {page: createPlaylist, name: "+  Create playlist"},
 		{page: liked, name: "♥  Liked Songs"}, {page: onRepeat, name: "On Repeat"}, {page: recent, name: "Recently Played"},
 		{page: night, name: "Night Drive"}, {page: daybreak, name: "Daybreak Tapes"},
+	}
+	if len(m.online.registry.Entries()) > 0 {
+		rows = append(rows, menuRow{page: providersPage, name: "◉  Music providers"})
 	}
 	for i, p := range m.playlists {
 		if !p.deleted {

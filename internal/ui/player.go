@@ -26,6 +26,9 @@ func (m model) playSymbol() string {
 }
 
 func (m model) playerBar() string {
+	if m.remote() {
+		return m.catalogBar()
+	}
 	t, w, h := m.theme, m.width, m.playerHeight()
 	top := m.height - h
 	track, ok := m.player.Track()

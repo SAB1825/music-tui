@@ -21,13 +21,15 @@ const (
 	daybreak
 	settings
 	queue
+	publicPlaylist
+	providersPage
 	firstPlaylist
 )
 
 func (p page) String() string {
 	return [...]string{
 		"Home", "Library", "Radio", "Downloads", "Create playlist", "Liked Songs",
-		"On Repeat", "Recently Played", "Night Drive", "Daybreak Tapes", "Settings", "Queue",
+		"On Repeat", "Recently Played", "Night Drive", "Daybreak Tapes", "Settings", "Queue", "Public playlist", "Music providers",
 	}[p]
 }
 
@@ -35,6 +37,16 @@ func (p page) unavailable() bool { return p == radio || p == downloads }
 
 func (m *model) choosePage(p page) tea.Cmd {
 	switch p {
+	case publicPlaylist:
+		return m.showDialog(dialogPublicPlaylist)
+	case providersPage:
+		return m.showDialog(dialogProviders)
+	case home:
+		if m.remote() {
+			m.clearCatalog()
+		}
+		m.open(p)
+		return nil
 	case settings:
 		return m.showDialog(dialogSettings)
 	case createPlaylist:
@@ -82,6 +94,13 @@ func moodTrack(category, index int) bool {
 }
 
 func (m model) matches() []int {
+	if m.remote() {
+		indices := make([]int, len(m.online.tracks))
+		for i := range indices {
+			indices[i] = i
+		}
+		return indices
+	}
 	query := strings.ToLower(strings.TrimSpace(m.search.Value()))
 	if query == "" && m.page >= firstPlaylist {
 		if p := m.playlists[m.page-firstPlaylist]; p.track >= 0 && !p.deleted {

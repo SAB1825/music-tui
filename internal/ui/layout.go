@@ -79,6 +79,9 @@ func (m model) mainPanel(width, height int) string {
 	if m.layout().sidebar == 0 && m.focus == sidebarFocus {
 		return m.sidebarPanel(width, height)
 	}
+	if m.remote() {
+		return m.onlinePanel(width, height)
+	}
 	if m.discoveryVisible() {
 		return m.homePanel(width, height)
 	}
@@ -86,10 +89,13 @@ func (m model) mainPanel(width, height int) string {
 }
 
 func (m model) discoveryVisible() bool {
-	return m.page == home && m.search.Value() == "" && m.bodyHeight() >= 16 && m.layout().content() >= 46
+	return !m.remote() && m.page == home && m.search.Value() == "" && m.bodyHeight() >= 16 && m.layout().content() >= 46
 }
 
 func (m model) trackRows(height int) int {
+	if m.remote() {
+		return max(0, height-4)
+	}
 	if m.discoveryVisible() {
 		return discoveryColumns(m.layout().content()) * homeDimensions(m.layout().content(), height).discoveryRows
 	}

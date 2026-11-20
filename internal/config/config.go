@@ -21,8 +21,9 @@ type Visualizer struct {
 	Source    string `toml:"source"`
 }
 
-type file struct {
+type Config struct {
 	Visualizer Visualizer `toml:"visualizer"`
+	Provider   Provider   `toml:"provider"`
 }
 
 // Defaults enables the local monitor with a compact spectrum.
@@ -61,30 +62,30 @@ func monitorName(name string) bool {
 }
 
 // Load reads config.toml without creating or changing it.
-func Load() (Visualizer, error) {
+func Load() (Config, error) {
 	dir, err := os.UserConfigDir()
 	if err != nil {
-		return Visualizer{}, fmt.Errorf("locate configuration: %w", err)
+		return Config{}, fmt.Errorf("locate configuration: %w", err)
 	}
 	path := filepath.Join(dir, "music-tui", "config.toml")
 	f, err := os.Open(path)
 	if errors.Is(err, os.ErrNotExist) {
-		return Defaults(), nil
+		return defaults(), nil
 	}
 	if err != nil {
-		return Visualizer{}, fmt.Errorf("open %s: %w", path, err)
+		return Config{}, fmt.Errorf("open %s: %w", path, err)
 	}
 	v, readErr := decode(f)
 	if err := errors.Join(readErr, f.Close()); err != nil {
-		return Visualizer{}, fmt.Errorf("read %s: %w", path, err)
+		return Config{}, fmt.Errorf("read %s: %w", path, err)
 	}
 	return v, nil
 }
 
-func decode(r io.Reader) (Visualizer, error) {
-	cfg := file{Visualizer: Defaults()}
+func decode(r io.Reader) (Config, error) {
+	cfg := defaults()
 	if err := toml.NewDecoder(r).DisallowUnknownFields().Decode(&cfg); err != nil {
-		return Visualizer{}, err
+		return Config{}, fmt.Errorf("invalid TOML or unknown configuration field")
 	}
-	return cfg.Visualizer, cfg.Visualizer.Validate()
+	return cfg, errors.Join(cfg.Visualizer.Validate(), cfg.Provider.validate())
 }

@@ -43,6 +43,26 @@ The featured player and bottom dock offer clickable playback controls. Click a p
 
 Settings and Help open in centered dialogs. Use Tab and Enter to choose an action, or Esc to close. Create a session playlist from the sidebar. It starts with the currently cued track when one is available. Use **Delete list** or the Delete key to remove it after confirmation.
 
+## YouTube catalog
+
+Afterhours uses your existing `YOUTUBE_API_KEY` from the environment, or from `.env` in the directory you launch from. Environment variables take precedence. With the key configured, YouTube is selected by default. Press **v** or choose **Music providers** to switch to Mock for offline use. A failed online search stays visible as a YouTube error.
+
+Press **/**, type a query, and press **Enter** to search. Click **More** or press **m** to fetch a page. Press **g** to load a public playlist by URL or ID. Select a video and press **Enter** or click **Open in YouTube** to open it in the browser. On Linux the browser action uses `xdg-open`.
+
+Optional settings go in the same `config.toml` as the visualizer settings:
+
+```toml
+[provider]
+default = "auto" # auto, youtube, or mock
+
+[provider.youtube]
+enabled = true
+request_timeout = "10s"
+search_limit = 20
+```
+
+The API key stays outside TOML. YouTube results are music-related videos attributed to YouTube and the supplied channel. Native playback remains simulated in Mock. [Catalog behavior](docs/streaming.md)
+
 ## Optional CAVA spectrum
 
 On Arch Linux, CAVA can be installed with `sudo pacman -S cava`. The app can run without it. Open **Settings** with **,** to see backend or configuration diagnostics.
@@ -64,7 +84,7 @@ Set `enabled = false` to turn off capture, or use a specific `.monitor` name fro
 
 ## Current scope
 
-The built-in mock catalog is the sole provider. Favorites and recently played tracks last for the session. On Repeat, Night Drive, and Daybreak Tapes are mock collections. Radio and Downloads are marked unavailable.
+The Mock provider works offline. Its favorites and recently played tracks last for the session. On Repeat, Night Drive, and Daybreak Tapes are mock collections. Radio and Downloads are marked unavailable.
 
 Album and playlist artwork uses original terminal-cell illustrations. Kitty graphics image placements are deferred because their redraw and cleanup behavior has yet to be verified with Bubble Tea v2 under tmux.
 
